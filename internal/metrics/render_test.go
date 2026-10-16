@@ -27,7 +27,7 @@ func TestRender(t *testing.T) {
 	}
 	text := output.String()
 	for _, expected := range []string{
-		`circuit_info{if_name="eth0",if_speed="1e+09",partner_circuit_id="circuit\"1",partner_id="3sg"} 1`,
+		`circuit_info{if_name="eth0",if_speed="1000000000",partner_circuit_id="circuit\"1",partner_id="3sg"} 1`,
 		`circuit_status{partner_circuit_id="circuit\"1",partner_id="3sg"} 1`,
 		`circuit_packet_loss_percentage{partner_circuit_id="circuit\"1",partner_id="3sg"} 0`,
 		`circuit_bandwidth_value_bps{partner_circuit_id="circuit\"1",partner_id="3sg",direction="in"} 42`,

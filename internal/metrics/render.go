@@ -17,7 +17,7 @@ func Render(w io.Writer, circuits []collector.Circuit, partnerID string) error {
 	infoLabels := func(c collector.Circuit) string {
 		speed := ""
 		if c.IfSpeed != nil {
-			speed = format(*c.IfSpeed)
+			speed = formatInteger(*c.IfSpeed)
 		}
 		return fmt.Sprintf(`if_name="%s",if_speed="%s",partner_circuit_id="%s",partner_id="%s"`,
 			escape(c.IfName), speed, escape(c.PartnerCircuitID), escape(partnerID))
@@ -64,6 +64,10 @@ func Render(w io.Writer, circuits []collector.Circuit, partnerID string) error {
 
 func format(v float64) string {
 	return strconv.FormatFloat(v, 'g', -1, 64)
+}
+
+func formatInteger(v float64) string {
+	return strconv.FormatFloat(v, 'f', 0, 64)
 }
 
 func escape(v string) string {
