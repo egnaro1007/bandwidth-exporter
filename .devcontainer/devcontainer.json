@@ -1,0 +1,25 @@
+{
+  "name": "Circuit bandwidth exporter",
+  "image": "mcr.microsoft.com/devcontainers/go:1",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "containerUser": "1000",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "go.gopath": "/go"
+      }
+    }
+  },
+  "postCreateCommand": "go version && git --version"
+}
+
