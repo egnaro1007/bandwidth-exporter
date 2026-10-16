@@ -37,7 +37,7 @@ func TestCircuitFromHost(t *testing.T) {
 	c := circuitFromHost(h, "wan1", macroValue(h, "{$WAN1_ACC}"))
 	if c.PartnerCircuitID != "acc-1" || c.IfName != "eth0" || c.IfSpeed == nil || *c.IfSpeed != 1000000000 ||
 		c.BandwidthInBPS == nil || *c.BandwidthInBPS != 12 || c.ErrorsInTotal == nil || *c.ErrorsInTotal != 3 ||
-		c.Status == nil || *c.Status != 1 {
+		c.Status == nil || *c.Status != 0 {
 		t.Fatalf("unexpected circuit: %+v", c)
 	}
 }
@@ -48,4 +48,35 @@ func TestCircuitFromHostKeepsMissingItemsNil(t *testing.T) {
 		c.BandwidthInBPS != nil || c.ErrorsInTotal != nil {
 		t.Fatalf("missing items must remain nil: %+v", c)
 	}
+}
+
+func TestNormalize3SGStatus(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  *float64
+		want *float64
+	}{
+		{name: "missing", raw: nil, want: nil},
+		{name: "up is healthy", raw: floatPointer(1), want: floatPointer(0)},
+		{name: "down is an error", raw: floatPointer(0), want: floatPointer(1)},
+		{name: "unknown code is an error", raw: floatPointer(2), want: floatPointer(1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalize3SGStatus(tt.raw)
+			if tt.want == nil {
+				if got != nil {
+					t.Fatalf("normalize3SGStatus() = %v, want nil", *got)
+				}
+				return
+			}
+			if got == nil || *got != *tt.want {
+				t.Fatalf("normalize3SGStatus() = %v, want %v", got, *tt.want)
+			}
+		})
+	}
+}
+
+func floatPointer(value float64) *float64 {
+	return &value
 }

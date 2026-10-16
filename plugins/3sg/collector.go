@@ -84,6 +84,11 @@ type rpcError struct {
 
 var interfaceName = regexp.MustCompile(`(?i)^Interface\s+\w+\((.*?)\)`)
 
+var threeSGStatusCodes = map[int64]float64{
+	0: 1, // 3sg: DOWN -> exporter: error
+	1: 0, // 3sg: UP -> exporter: healthy
+}
+
 func (z *zabbixCollector) Collect(ctx context.Context) ([]collector.Circuit, error) {
 	if strings.TrimSpace(z.url) == "" {
 		return nil, fmt.Errorf("THREESG_ZABBIX_URL is required")
@@ -185,7 +190,9 @@ func circuitFromHost(h host, wan, acc string) collector.Circuit {
 	c := collector.Circuit{PartnerCircuitID: acc}
 	c.IfName = interfaceNameFor(h, wan)
 	c.IfSpeed = itemNumber(h, wan, func(key string) bool { return strings.HasPrefix(key, "net.if.speed[") }, false)
-	c.Status = itemNumber(h, "", func(key string) bool { return key == "icmpping[{$"+strings.ToUpper(wan)+"_IP}]" }, false)
+	c.Status = normalize3SGStatus(itemNumber(h, "", func(key string) bool {
+		return key == "icmpping[{$"+strings.ToUpper(wan)+"_IP}]"
+	}, false))
 	c.LatencySeconds = itemNumber(h, "", func(key string) bool { return key == "icmppingsec[{$"+strings.ToUpper(wan)+"_IP}]" }, false)
 	c.PacketLoss = itemNumber(h, "", func(key string) bool { return key == "icmppingloss[{$"+strings.ToUpper(wan)+"_IP}]" }, false)
 	c.BandwidthInBPS = itemNumber(h, wan, func(key string) bool { return strings.HasPrefix(key, "net.if.in[") }, false)
@@ -195,6 +202,18 @@ func circuitFromHost(h host, wan, acc string) collector.Circuit {
 	c.DiscardsInTotal = interfaceMetric(h, wan, "in", "discards")
 	c.DiscardsOutTotal = interfaceMetric(h, wan, "out", "discards")
 	return c
+}
+
+func normalize3SGStatus(raw *float64) *float64 {
+	if raw == nil {
+		return nil
+	}
+	if normalized, ok := threeSGStatusCodes[int64(*raw)]; ok && *raw == float64(int64(*raw)) {
+		return &normalized
+	}
+	// Unknown source codes are treated as errors until explicitly classified.
+	errorStatus := 1.0
+	return &errorStatus
 }
 
 func interfaceNameFor(h host, wan string) string {
