@@ -2,6 +2,21 @@ package main
 
 import "testing"
 
+func TestEnvBool(t *testing.T) {
+	for _, value := range []string{"1", "true", "TRUE", "yes", "on"} {
+		t.Setenv("THREESG_ZABBIX_INSECURE_SKIP_VERIFY", value)
+		if !envBool("THREESG_ZABBIX_INSECURE_SKIP_VERIFY") {
+			t.Errorf("envBool(%q) = false, want true", value)
+		}
+	}
+	for _, value := range []string{"", "false", "no", "off", "invalid"} {
+		t.Setenv("THREESG_ZABBIX_INSECURE_SKIP_VERIFY", value)
+		if envBool("THREESG_ZABBIX_INSECURE_SKIP_VERIFY") {
+			t.Errorf("envBool(%q) = true, want false", value)
+		}
+	}
+}
+
 func TestCircuitFromHost(t *testing.T) {
 	h := host{
 		Macros: []struct {

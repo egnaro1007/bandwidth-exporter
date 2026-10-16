@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -20,15 +22,32 @@ type zabbixCollector struct {
 	client    *http.Client
 	username  string
 	password  string
+	insecure  bool
 }
 
 func NewCollector() collector.Collector {
+	insecure := envBool("THREESG_ZABBIX_INSECURE_SKIP_VERIFY")
+	if insecure {
+		log.Print("WARNING: THREESG_ZABBIX_INSECURE_SKIP_VERIFY is enabled; TLS certificates are not verified")
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: insecure}
 	return &zabbixCollector{
 		url:       os.Getenv("THREESG_ZABBIX_URL"),
 		authToken: os.Getenv("THREESG_ZABBIX_AUTH_TOKEN"),
 		username:  os.Getenv("THREESG_ZABBIX_USERNAME"),
 		password:  os.Getenv("THREESG_ZABBIX_PASSWORD"),
-		client:    &http.Client{Timeout: 30 * time.Second},
+		insecure:  insecure,
+		client:    &http.Client{Timeout: 30 * time.Second, Transport: transport},
+	}
+}
+
+func envBool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
 	}
 }
 
