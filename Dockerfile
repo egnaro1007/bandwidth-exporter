@@ -3,7 +3,8 @@ WORKDIR /src
 COPY . .
 RUN CGO_ENABLED=1 go build -o /out/bandwidth-exporter ./cmd/exporter \
     && mkdir -p /out/plugins \
-    && go build -buildmode=plugin -o /out/plugins/3sg.so ./plugins/3sg
+    && go build -buildmode=plugin -o /out/plugins/3sg.so ./plugins/3sg \
+    && go build -buildmode=plugin -o /out/plugins/megamax.so ./plugins/megamax
 
 FROM debian:bookworm-slim
 WORKDIR /app
