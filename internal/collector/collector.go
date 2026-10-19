@@ -18,5 +18,6 @@ type Circuit struct {
 }
 
 type Collector interface {
+	PartnerID() string
 	Collect(context.Context) ([]Circuit, error)
 }

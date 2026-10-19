@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
@@ -22,10 +23,13 @@ type loadedCollector struct {
 func main() {
 	port := flag.String("port", envOr("PORT", "9598"), "HTTP listen port")
 	pluginDir := flag.String("plugins", envOr("PLUGIN_DIR", "./plugins"), "directory containing .so plugins")
-	partnerID := flag.String("partner-id", envOr("PARTNER_ID", "3sg"), "partner label used for metrics")
 	flag.Parse()
 
-	collectors, err := loadCollectors(*pluginDir)
+	enabled := map[string]bool{
+		"3sg":     envBool("ENABLE_3SG", true),
+		"megamax": envBool("ENABLE_MEGAMAX", true),
+	}
+	collectors, err := loadCollectors(*pluginDir, enabled)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,7 +42,7 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		var all []collector.Circuit
+		var rendered bytes.Buffer
 		for _, item := range collectors {
 			values, err := item.c.Collect(r.Context())
 			if err != nil {
@@ -47,12 +51,13 @@ func main() {
 				http.Error(w, err.Error(), http.StatusBadGateway)
 				return
 			}
-			all = append(all, values...)
+			if err := metrics.Render(&rendered, values, item.c.PartnerID()); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		if err := metrics.Render(w, all, *partnerID); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		_, _ = w.Write(rendered.Bytes())
 	})
 
 	addr := ":" + *port
@@ -60,13 +65,18 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, handler))
 }
 
-func loadCollectors(dir string) ([]loadedCollector, error) {
+func loadCollectors(dir string, enabled map[string]bool) ([]loadedCollector, error) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.so"))
 	if err != nil {
 		return nil, fmt.Errorf("scan plugins: %w", err)
 	}
 	result := make([]loadedCollector, 0, len(files))
+	found := make(map[string]bool)
 	for _, file := range files {
+		base := filepath.Base(file)
+		if (base == "3sg.so" && !enabled["3sg"]) || (base == "megamax.so" && !enabled["megamax"]) {
+			continue
+		}
 		p, err := plugin.Open(file)
 		if err != nil {
 			return nil, fmt.Errorf("load plugin %s: %w", file, err)
@@ -83,9 +93,34 @@ func loadCollectors(dir string) ([]loadedCollector, error) {
 		if c == nil {
 			return nil, fmt.Errorf("plugin %s returned a nil collector", file)
 		}
-		result = append(result, loadedCollector{name: filepath.Base(file), c: c})
+		if configured, ok := enabled[c.PartnerID()]; ok && !configured {
+			continue
+		}
+		found[c.PartnerID()] = true
+		result = append(result, loadedCollector{name: base, c: c})
+	}
+	for partner, configured := range enabled {
+		if configured && !found[partner] {
+			return nil, fmt.Errorf("enabled partner %q plugin is not present in %s", partner, dir)
+		}
 	}
 	return result, nil
+}
+
+func envBool(name string, fallback bool) bool {
+	value, exists := os.LookupEnv(name)
+	if !exists || strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		log.Printf("invalid %s=%q, using %t", name, value, fallback)
+		return fallback
+	}
 }
 
 func envOr(name, fallback string) string {

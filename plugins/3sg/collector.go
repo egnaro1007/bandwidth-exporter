@@ -25,6 +25,10 @@ type zabbixCollector struct {
 	insecure  bool
 }
 
+func (z *zabbixCollector) PartnerID() string {
+	return "3sg"
+}
+
 func NewCollector() collector.Collector {
 	insecure := envBool("THREESG_ZABBIX_INSECURE_SKIP_VERIFY")
 	if insecure {
