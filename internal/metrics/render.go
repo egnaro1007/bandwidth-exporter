@@ -63,7 +63,7 @@ func Render(w io.Writer, circuits []collector.Circuit, partnerID string) error {
 }
 
 func format(v float64) string {
-	return strconv.FormatFloat(v, 'g', -1, 64)
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
 func formatInteger(v float64) string {

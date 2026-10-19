@@ -59,3 +59,21 @@ func TestRenderOmitsNullMetricsButKeepsRealZero(t *testing.T) {
 		t.Fatal("null bandwidth must not be rendered")
 	}
 }
+
+func TestRenderUsesDecimalMetricValues(t *testing.T) {
+	var output bytes.Buffer
+	bandwidth := 14057336.0
+	err := Render(&output, []collector.Circuit{
+		{PartnerCircuitID: "decimal-circuit", BandwidthInBPS: &bandwidth},
+	}, "megamax")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if !strings.Contains(output.String(),
+		`circuit_bandwidth_value_bps{partner_circuit_id="decimal-circuit",partner_id="megamax",direction="in"} 14057336`) {
+		t.Fatalf("bandwidth was not rendered as decimal: %s", output.String())
+	}
+	if strings.Contains(output.String(), "e+") {
+		t.Fatalf("output unexpectedly uses exponential notation: %s", output.String())
+	}
+}

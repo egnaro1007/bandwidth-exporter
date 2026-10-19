@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"plugin"
 	"strings"
+	"sync"
 
 	"bandwidth-exporter/internal/collector"
 	"bandwidth-exporter/internal/metrics"
@@ -43,15 +44,28 @@ func main() {
 			return
 		}
 		var rendered bytes.Buffer
-		for _, item := range collectors {
-			values, err := item.c.Collect(r.Context())
-			if err != nil {
-				err = fmt.Errorf("plugin %s: %w", item.name, err)
-				log.Print(err)
-				http.Error(w, err.Error(), http.StatusBadGateway)
-				return
+		results := make([][]collector.Circuit, len(collectors))
+		errs := make([]error, len(collectors))
+		var wg sync.WaitGroup
+		wg.Add(len(collectors))
+		for i, item := range collectors {
+			go func(i int, item loadedCollector) {
+				defer wg.Done()
+				values, err := item.c.Collect(r.Context())
+				if err != nil {
+					errs[i] = fmt.Errorf("plugin %s: %w", item.name, err)
+					return
+				}
+				results[i] = values
+			}(i, item)
+		}
+		wg.Wait()
+		for i, item := range collectors {
+			if errs[i] != nil {
+				log.Print(errs[i])
+				continue
 			}
-			if err := metrics.Render(&rendered, values, item.c.PartnerID()); err != nil {
+			if err := metrics.Render(&rendered, results[i], item.c.PartnerID()); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
